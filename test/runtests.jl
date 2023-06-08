@@ -1,4 +1,5 @@
-using Revise, SpartanMatrices, Test
+using SpartanMatrices
+using Test
 
 import SparseArrays
 
@@ -30,7 +31,7 @@ import SparseArrays
         @test setindex!(mat, val, row, col) === mat
         @test mat[row, col] == val
     end
-    row, col, val = 2, 1 # not stored
+    row, col = 2, 1 # not stored
     for mat in (csc, csr)
         @test_throws SpartanMatrices.SparsityError setindex!(mat, val, row, col)
     end
