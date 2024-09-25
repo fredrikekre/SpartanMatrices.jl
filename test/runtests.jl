@@ -1,9 +1,10 @@
 using SpartanMatrices
 using Test
 
-import SparseArrays
+using SparseArrays: SparseArrays, sprand, findnz
+using LinearAlgebra: mul!
 
-@testset "SpartanArrays" begin
+@testset "SpartanArrays basics" begin
     # Constructors
     I = [1, 1, 2, 3]
     J = [1, 2, 3, 4]
@@ -35,4 +36,21 @@ import SparseArrays
     for mat in (csc, csr)
         @test_throws SpartanMatrices.SparsityError setindex!(mat, val, row, col)
     end
+end
+
+@testset "A::CSXMatrix{$T} * b::Vector{$T}" for T in (Float32, Float64)
+    n = 100
+    CSC = sprand(T, n, n, 0.1)
+    I, J, V = findnz(CSC)
+    csc = cscmatrix(I, J, V)
+    csr = csrmatrix(I, J, V)
+    b = rand(T, n)
+    # A * b
+    @test csc * b ≈ csr * b ≈ CSC * b
+    # mul!(c, A, b)
+    @test mul!(similar(b), csc, b) ≈ mul!(similar(b), csr, b) ≈ mul!(similar(b), CSC, b)
+    # mul!(c, A, b, α, β)
+    α, β = 1.2, 3.4
+    c = rand(n)
+    @test mul!(copy(c), csc, b, α, β) ≈ mul!(copy(c), csr, b, α, β) ≈ mul!(copy(c), CSC, b, α, β)
 end

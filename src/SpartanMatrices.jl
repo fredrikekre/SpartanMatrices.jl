@@ -3,7 +3,8 @@ module SpartanMatrices
 export CSCMatrix, CSRMatrix
 export cscmatrix, csrmatrix
 
-import SparseArrays
+using SparseArrays: SparseArrays, SparseMatrixCSC
+using LinearAlgebra: LinearAlgebra, transpose, mul!
 
 # Note: consts instead of using Base: ... to please the linter
 const var"@propagate_inbounds" = Base.var"@propagate_inbounds"
@@ -51,25 +52,24 @@ let m      = Expr(:call, :getfield, :S, QuoteNode(:m)     ),
     rowptr = Expr(:call, :getfield, :S, QuoteNode(:rowptr)),
     rowval = Expr(:call, :getfield, :S, QuoteNode(:rowval)),
     colval = Expr(:call, :getfield, :S, QuoteNode(:colval)),
-    nzval  = Expr(:call, :getfield, :S, QuoteNode(:nzval) ),
-    CSC    = Expr(:call, :getfield, :SparseArrays, QuoteNode(:SparseMatrixCSC))
+    nzval  = Expr(:call, :getfield, :S, QuoteNode(:nzval) )
     @eval begin
         # CSCMatrix -> SparseMatrixCSC
-        @inline function unsafe_cast(::Type{SparseArrays.SparseMatrixCSC}, S::CSCMatrix{Tv, Ti}) where {Tv, Ti}
-            return $(Expr(:new, Expr(:curly, CSC, :Tv, :Ti), m, n, colptr, rowval, nzval))
+        @inline function unsafe_cast(::Type{SparseMatrixCSC}, S::CSCMatrix{Tv, Ti}) where {Tv, Ti}
+            return $(Expr(:new, Expr(:curly, SparseMatrixCSC, :Tv, :Ti), m, n, colptr, rowval, nzval))
         end
         # CSRMatrix -> SparseMatrixCSC (note that the result is transposed)
-        @inline function unsafe_cast(::Type{SparseArrays.SparseMatrixCSC}, S::CSRMatrix{Tv, Ti}) where {Tv, Ti}
-            return $(Expr(:new, Expr(:curly, CSC, :Tv, :Ti), n, m, rowptr, colval, nzval))
+        @inline function unsafe_cast(::Type{SparseMatrixCSC}, S::CSRMatrix{Tv, Ti}) where {Tv, Ti}
+            return $(Expr(:new, Expr(:curly, SparseMatrixCSC, :Tv, :Ti), n, m, rowptr, colval, nzval))
         end
     end
 end
 # SparseMatrixCSC -> CSCMatrix
-@inline function unsafe_cast(::Type{CSCMatrix}, S::SparseArrays.SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
+@inline function unsafe_cast(::Type{CSCMatrix}, S::SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
     CSCMatrix{Tv, Ti}(S.m, S.n, S.colptr, S.rowval, S.nzval)
 end
 # SparseMatrixCSC -> CSRMatrix (note that the result is transposed)
-@inline function unsafe_cast(::Type{CSRMatrix}, S::SparseArrays.SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
+@inline function unsafe_cast(::Type{CSRMatrix}, S::SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
     CSRMatrix{Tv, Ti}(S.n, S.m, S.colptr, S.rowval, S.nzval)
 end
 # CSCMatrix -> CSRMatrix (note that the result is transposed)
@@ -82,14 +82,15 @@ end
 end
 
 # Scalar getindex
+# TODO: Should this error if reaching for an entry that is not stored too?
 @propagate_inbounds function Base.getindex(A::CSCMatrix{Tv, Ti}, row::Int, col::Int) where {Tv, Ti}
     @boundscheck checkbounds(A, row, col)
-    S = unsafe_cast(SparseArrays.SparseMatrixCSC, A)
+    S = unsafe_cast(SparseMatrixCSC, A)
     return @inbounds getindex(S, row, col)
 end
 @propagate_inbounds function Base.getindex(A::CSRMatrix{Tv, Ti}, row::Int, col::Int) where {Tv, Ti}
     @boundscheck checkbounds(A, row, col)
-    S = unsafe_cast(SparseArrays.SparseMatrixCSC, A)
+    S = unsafe_cast(SparseMatrixCSC, A)
     return @inbounds getindex(S, col, row) # Note swap of col and row
 end
 
@@ -115,6 +116,16 @@ end
 @propagate_inbounds function Base.setindex!(A::CSRMatrix{T}, v::T, row::Int, col::Int) where T
     setindex!(unsafe_cast(CSCMatrix, A), v, col, row)
     return A
+end
+
+# Matrix-vector multiplication
+# TODO: Is this the correct place to hook into?
+function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSCMatrix{T}, b::AbstractVector{T}, α::Number, β::Number) where {T}
+    return mul!(c, unsafe_cast(SparseMatrixCSC, A), b, α, β)
+end
+function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSRMatrix{T}, b::AbstractVector{T}, α::Number, β::Number) where {T}
+    # TODO: transpose -> hermitian?
+    return mul!(c, transpose(unsafe_cast(SparseMatrixCSC, A)), b, α, β)
 end
 
 end # module SpartanMatrices
