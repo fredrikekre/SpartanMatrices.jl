@@ -3,14 +3,18 @@ module SpartanMatrices
 export CSCMatrix, CSRMatrix
 export cscmatrix, csrmatrix
 
+using Base: Broadcast
+using LinearAlgebra: LinearAlgebra, mul!, transpose
 using SparseArrays: SparseArrays, SparseMatrixCSC
-using LinearAlgebra: LinearAlgebra, transpose, mul!
 
-# Note: consts instead of using Base: ... to please the linter
+# Silence of the Langs(erver)
 const var"@propagate_inbounds" = Base.var"@propagate_inbounds"
 const Forward = Base.Order.Forward
 
-struct SparsityError <: Exception end
+
+###########
+# Structs #
+###########
 
 struct CSCMatrix{Tv <: Number, Ti <: Integer} <: AbstractMatrix{Tv}
     m::Int
@@ -30,19 +34,10 @@ end
 
 const CSXMatrix{Tv, Ti} = Union{CSCMatrix{Tv, Ti}, CSRMatrix{Tv, Ti}}
 
-function Base.size(csx::CSXMatrix)
-    return (csx.m, csx.n)
-end
 
-function cscmatrix(args...)
-    S = SparseArrays.sparse(args...)
-    return CSCMatrix(S.m, S.n, S.colptr, S.rowval, S.nzval)
-end
-
-function csrmatrix(I, J, args...)
-    S = SparseArrays.sparse(J, I, args...) # Note swap of I and J
-    return CSRMatrix(S.n, S.m, S.colptr, S.rowval, S.nzval)
-end
+################
+# Type casting #
+################
 
 # This monstrosity is needed in order to bypass the inner constructor of
 # SparseMatrixCSC (which has some expensive checks on the buffers).
@@ -81,42 +76,243 @@ end
     return CSCMatrix{Tv, Ti}(S.n, S.m, S.rowptr, S.colval, S.nzval)
 end
 
-# Scalar getindex
-# TODO: Should this error if reaching for an entry that is not stored too?
-@propagate_inbounds function Base.getindex(A::CSCMatrix{Tv, Ti}, row::Int, col::Int) where {Tv, Ti}
-    @boundscheck checkbounds(A, row, col)
-    S = unsafe_cast(SparseMatrixCSC, A)
-    return @inbounds getindex(S, row, col)
+
+##################
+# Misc utilities #
+##################
+
+struct SparsityError <: Exception
+    msg::Union{Nothing, LazyString}
 end
-@propagate_inbounds function Base.getindex(A::CSRMatrix{Tv, Ti}, row::Int, col::Int) where {Tv, Ti}
-    @boundscheck checkbounds(A, row, col)
-    S = unsafe_cast(SparseMatrixCSC, A)
-    return @inbounds getindex(S, col, row) # Note swap of col and row
+SparsityError() = SparsityError(nothing)
+
+function Base.showerror(io::IO, e::SparsityError)
+    print(io, "SparsityError")
+    if e.msg !== nothing
+        print(io, ": ", e.msg)
+    end
+    return
 end
 
-# Scalar setindex!: only allowed if entry is already stored
-@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v, row, col) where T
-    return setindex!(A, T(v), Int(row), Int(col))
-end
-@propagate_inbounds function Base.setindex!(A::CSCMatrix{T}, v::T, row::Int, col::Int) where T
+# TODO: unsafe_findtoken for when we know the entry is stored?
+@propagate_inbounds function findtoken(A::CSCMatrix, row::Int, col::Int)
     @boundscheck checkbounds(A, row, col)
     kl = Int(A.colptr[col])
     ku = Int(A.colptr[col + 1] - 1)
     if ku < kl
-        throw(SparsityError())
+        return nothing
     end
     k = searchsortedfirst(A.rowval, row, kl, ku, Forward)
     if k <= ku && A.rowval[k] == row
-        A.nzval[k] = v
+        return k
     else
-        throw(SparsityError())
+        return nothing
     end
+end
+@propagate_inbounds function findtoken(A::CSRMatrix, row::Int, col::Int)
+    return findtoken(unsafe_cast(CSCMatrix, A), col, row)
+end
+
+
+################
+# Constructors #
+################
+
+function cscmatrix(args...)
+    S = SparseArrays.sparse(args...)
+    return unsafe_cast(CSCMatrix, S)
+    # return CSCMatrix(S.m, S.n, S.colptr, S.rowval, S.nzval)
+end
+
+function csrmatrix(I, J, args...)
+    S = SparseArrays.sparse(J, I, args...) # Note the swap of I and J
+    return CSRMatrix(S.n, S.m, S.colptr, S.rowval, S.nzval)
+end
+
+
+###################
+# Pretty printing #
+###################
+
+function Base.show(io::IO, ::MIME"text/plain", A::CSXMatrix)
+    summary(io, A)
+    nnz = length(A.nzval)
+    println(io, " with $nnz stored entries:")
+    if A isa CSCMatrix
+        Base.print_matrix(io, unsafe_cast(SparseMatrixCSC, A))
+    else
+        Base.print_matrix(io, transpose(unsafe_cast(SparseMatrixCSC, A)))
+    end
+    return
+end
+
+
+###########################
+# AbstractArray interface #
+###########################
+
+function Base.size(csx::CSXMatrix)
+    return (csx.m, csx.n)
+end
+
+function Base.similar(A::CSXMatrix, ::Type{T}, dims::NTuple{2, Int}) where T
+    if dims != size(A)
+        throw(ArgumentError("size mismatch"))
+    end
+    return similar_with_vals(A, similar(A.nzval, T))
+end
+
+# Scalar getindex
+# TODO: Error instead of returning zero for non-stored entries?
+@propagate_inbounds function Base.getindex(A::CSXMatrix{Tv, Ti}, row::Int, col::Int) where {Tv, Ti}
+    @boundscheck checkbounds(A, row, col)
+    k = @inbounds findtoken(A, row, col)
+    if k === nothing
+        return zero(Tv)
+    end
+    return A.nzval[k]
+end
+
+# Scalar setindex!: only allowed if entry is already stored
+# TODO: Allow if v === zero(T) even if entry not stored?
+@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v, row, col) where T
+    return setindex!(A, T(v), Int(row), Int(col))
+end
+@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v::T, row::Int, col::Int) where T
+    @boundscheck checkbounds(A, row, col)
+    k = @inbounds findtoken(A, row, col)
+    if k === nothing
+        throw(SparsityError(lazy"row = $row and col = $col is not stored"))
+    end
+    A.nzval[k] = v
     return A
 end
-@propagate_inbounds function Base.setindex!(A::CSRMatrix{T}, v::T, row::Int, col::Int) where T
-    setindex!(unsafe_cast(CSCMatrix, A), v, col, row)
+
+# Note: not part of the AbstractArray interface
+function modifyindex!(A::CSXMatrix, f::F, v, row, col) where F
+    k = findtoken(A, row, col)
+    if k === nothing
+        throw(SparsityError(lazy"row = $row and col = $col is not stored"))
+    end
+    A.nzval[k] = f(A.nzval[k], v)
     return A
 end
+
+#############
+# Broadcast #
+#############
+
+getindex_at_token(x::Number, _) = x
+getindex_at_token(x::CSXMatrix, token) = x.nzval[token]
+
+zero_if_csx(x::Number) = x
+zero_if_csx(::CSXMatrix{Tv}) where Tv = zero(Tv)
+
+# Broadcast style. Not differentiating between CSCMatrix and CSRMatrix here because we have
+# to check it when instantiating the broadcasted object anyway.
+struct SpartanStyle <: Broadcast.BroadcastStyle end
+Broadcast.BroadcastStyle(::Type{<:CSXMatrix}) = SpartanStyle()
+
+# Broadcasting is only allowed between CSXMatrices and numbers so only define promotion
+# between these styles
+Broadcast.BroadcastStyle(::SpartanStyle, ::Broadcast.DefaultArrayStyle{0}) = SpartanStyle()
+Broadcast.BroadcastStyle(::SpartanStyle, ::SpartanStyle) = SpartanStyle()
+
+# Return the output matrix
+function Base.similar(bc::Broadcast.Broadcasted{SpartanStyle}, ::Type{T}) where T
+    # TODO: This is done again in copyto!
+    bc = Broadcast.flatten(bc)
+    idx = findfirst(x -> x isa CSXMatrix, bc.args)
+    if idx === nothing
+        throw(ErrorException("unreachable"))
+    end
+    A = bc.args[idx]
+    return similar(A, T, axes(bc))
+end
+
+# Materialization of the broadcasted object
+function Base.copyto!(csx::CSXMatrix{Tv, Ti}, bc::Broadcast.Broadcasted{SpartanStyle}) where {Tv, Ti}
+    bc = Broadcast.flatten(bc)
+    # Verify that the function is preserving zeros
+    z = bc.f(map(arg -> zero_if_csx(arg), bc.args)...)
+    if z != zero(Tv)
+        throw(SparsityError("broadcast kernel is not zero preserving"))
+    end
+    # Verify that all CSXMatrices have the same base type (CSCMatrix or CSRMatrix) and
+    # sparsity pattern
+    for arg in bc.args
+        if arg isa CSXMatrix
+            require_same_sparsity_pattern(csx, arg)
+        end
+    end
+    # Loop over the stored entries and apply the kernel
+    for token in eachindex(csx.nzval)
+        csx.nzval[token] = bc.f(map(arg -> getindex_at_token(arg, token), bc.args)...)
+    end
+    return csx
+end
+
+
+##################
+# Linear algebra #
+##################
+
+BaseType(A::CSXMatrix) = BaseType(typeof(A))
+BaseType(::Type{<:CSCMatrix}) = CSCMatrix
+BaseType(::Type{<:CSRMatrix}) = CSRMatrix
+rowcolptr(A::CSCMatrix) = A.colptr
+rowcolptr(A::CSRMatrix) = A.rowptr
+rowcolval(A::CSCMatrix) = A.rowval
+rowcolval(A::CSRMatrix) = A.colval
+
+function same_sparsity_pattern(A::CSXMatrix, B::CSXMatrix)
+    BaseType(A) === BaseType(B) || return false
+    axes(A) == axes(B) || return false
+    rcptrA = rowcolptr(A)
+    rcvalA = rowcolval(A)
+    rcptrB = rowcolptr(B)
+    rcvalB = rowcolval(B)
+    if rcptrA === rcptrB && rcvalA === rcvalB
+        return true
+    elseif rcptrA === rcptrB
+        return rcvalA == rcvalB
+    elseif rcvalA === rcvalB
+        return rcptrA == rcptrB
+    else
+        return rcptrA == rcptrB && rcvalA == rcvalB
+    end
+end
+
+function require_same_sparsity_pattern(A::CSXMatrix, B::CSXMatrix)
+    # This check is also done in same_sparsity_pattern but we want to give a better error
+    # message here
+    if BaseType(A) !== BaseType(B)
+        throw(SparsityError("operation doesn't support mixing CSCMatrix and CSRMatrix"))
+    end
+    if !same_sparsity_pattern(A, B)
+        throw(SparsityError("the sparsity pattern of the two arrays are not the same"))
+    end
+    return
+end
+
+# Construct a new CSXMatrix A′ with the same sparsity pattern as A but new value vector.
+# A.colptr/A.rowptr and A.rowval/A.colval are reused for A′.
+function similar_with_vals(A::CSCMatrix{<:Any, Ti}, values::AbstractVector{Tv}) where {Tv, Ti}
+    return CSCMatrix{Tv, Ti}(A.m, A.n, A.colptr, A.rowval, values)
+end
+function similar_with_vals(A::CSRMatrix{<:Any, Ti}, values::AbstractVector{Tv}) where {Tv, Ti}
+    return CSRMatrix{Tv, Ti}(A.m, A.n, A.rowptr, A.colval, values)
+end
+
+# Matrix scaling
+Base.:*(A::CSXMatrix, b::Number) = broadcast(*, A, b)
+Base.:*(b::Number, A::CSXMatrix) = broadcast(*, b, A)
+Base.:/(A::CSXMatrix, b::Number) = broadcast(/, A, b)
+Base.:\(b::Number, A::CSXMatrix) = broadcast(\, A, b)
+
+# Matrix addition/subtraction
+Base.:+(A::CSXMatrix, B::CSXMatrix) = broadcast(+, A, B)
+Base.:-(A::CSXMatrix, B::CSXMatrix) = broadcast(-, A, B)
 
 # Matrix-vector multiplication
 # TODO: Is this the correct place to hook into?

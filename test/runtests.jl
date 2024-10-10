@@ -38,6 +38,28 @@ using LinearAlgebra: mul!
     end
 end
 
+@testset "A::CSXMatrix{$T} + B::CSXMatrix{$T}" for T in (Float32, Float64)
+    for m in (10, 20), n in (10, 20)
+        CSC = sprand(T, m, n, 0.1)
+        CSR = transpose(CSC)
+        csc = SpartanMatrices.unsafe_cast(CSCMatrix, CSC)
+        csr = SpartanMatrices.unsafe_cast(CSRMatrix, CSC)
+        for (csx, CSX) in ((csc, CSC), (csr, CSR))
+            x = csx + csx
+            @test x == CSX + CSX
+            @test SpartanMatrices.rowcolptr(x) === SpartanMatrices.rowcolptr(csx)
+            @test SpartanMatrices.rowcolval(x) === SpartanMatrices.rowcolval(csx)
+        end
+        CSC2 = sprand(T, m, n, 0.1)
+        CSR2 = transpose(CSC2)
+        csc2 = SpartanMatrices.unsafe_cast(CSCMatrix, CSC2)
+        csr2 = SpartanMatrices.unsafe_cast(CSRMatrix, CSC2)
+        @test_throws Exception csc + csc2
+        @test_throws Exception csr + csr2
+        @test_throws Exception csc + csr
+    end
+end
+
 @testset "A::CSXMatrix{$T} * b::Vector{$T}" for T in (Float32, Float64)
     n = 100
     CSC = sprand(T, n, n, 0.1)
