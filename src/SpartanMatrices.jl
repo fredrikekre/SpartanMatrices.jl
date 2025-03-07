@@ -147,6 +147,17 @@ function Base.show(io::IO, ::MIME"text/plain", A::CSXMatrix)
 end
 
 
+################
+# Base methods #
+################
+
+# This is reached from `copy` which calls `copymutable` (i.e. `similar`) and then `copyto!`.
+function Base.copyto!(dst::X, src::X) where {X <: CSXMatrix}
+    require_same_sparsity_pattern(dst, src)
+    copyto!(dst.nzval, src.nzval)
+    return dst
+end
+
 ###########################
 # AbstractArray interface #
 ###########################
