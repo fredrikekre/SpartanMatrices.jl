@@ -308,7 +308,7 @@ end
 Base.:*(A::CSXMatrix, b::Number) = broadcast(*, A, b)
 Base.:*(b::Number, A::CSXMatrix) = broadcast(*, b, A)
 Base.:/(A::CSXMatrix, b::Number) = broadcast(/, A, b)
-Base.:\(b::Number, A::CSXMatrix) = broadcast(\, A, b)
+Base.:\(b::Number, A::CSXMatrix) = broadcast(\, b, A)
 
 # Matrix addition/subtraction
 Base.:+(A::CSXMatrix, B::CSXMatrix) = broadcast(+, A, B)
