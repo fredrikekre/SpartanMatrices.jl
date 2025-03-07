@@ -41,13 +41,13 @@ const CSXMatrix{Tv, Ti} = Union{CSCMatrix{Tv, Ti}, CSRMatrix{Tv, Ti}}
 
 # This monstrosity is needed in order to bypass the inner constructor of
 # SparseMatrixCSC (which has some expensive checks on the buffers).
-let m      = Expr(:call, :getfield, :S, QuoteNode(:m)     ),
-    n      = Expr(:call, :getfield, :S, QuoteNode(:n)     ),
-    colptr = Expr(:call, :getfield, :S, QuoteNode(:colptr)),
-    rowptr = Expr(:call, :getfield, :S, QuoteNode(:rowptr)),
-    rowval = Expr(:call, :getfield, :S, QuoteNode(:rowval)),
-    colval = Expr(:call, :getfield, :S, QuoteNode(:colval)),
-    nzval  = Expr(:call, :getfield, :S, QuoteNode(:nzval) )
+let m = Expr(:call, :getfield, :S, QuoteNode(:m)),
+        n = Expr(:call, :getfield, :S, QuoteNode(:n)),
+        colptr = Expr(:call, :getfield, :S, QuoteNode(:colptr)),
+        rowptr = Expr(:call, :getfield, :S, QuoteNode(:rowptr)),
+        rowval = Expr(:call, :getfield, :S, QuoteNode(:rowval)),
+        colval = Expr(:call, :getfield, :S, QuoteNode(:colval)),
+        nzval = Expr(:call, :getfield, :S, QuoteNode(:nzval))
     @eval begin
         # CSCMatrix -> SparseMatrixCSC
         @inline function unsafe_cast(::Type{SparseMatrixCSC}, S::CSCMatrix{Tv, Ti}) where {Tv, Ti}
@@ -61,11 +61,11 @@ let m      = Expr(:call, :getfield, :S, QuoteNode(:m)     ),
 end
 # SparseMatrixCSC -> CSCMatrix
 @inline function unsafe_cast(::Type{CSCMatrix}, S::SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
-    CSCMatrix{Tv, Ti}(S.m, S.n, S.colptr, S.rowval, S.nzval)
+    return CSCMatrix{Tv, Ti}(S.m, S.n, S.colptr, S.rowval, S.nzval)
 end
 # SparseMatrixCSC -> CSRMatrix (note that the result is transposed)
 @inline function unsafe_cast(::Type{CSRMatrix}, S::SparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
-    CSRMatrix{Tv, Ti}(S.n, S.m, S.colptr, S.rowval, S.nzval)
+    return CSRMatrix{Tv, Ti}(S.n, S.m, S.colptr, S.rowval, S.nzval)
 end
 # CSCMatrix -> CSRMatrix (note that the result is transposed)
 @inline function unsafe_cast(::Type{CSRMatrix}, S::CSCMatrix{Tv, Ti}) where {Tv, Ti}
@@ -155,7 +155,7 @@ function Base.size(csx::CSXMatrix)
     return (csx.m, csx.n)
 end
 
-function Base.similar(A::CSXMatrix, ::Type{T}, dims::NTuple{2, Int}) where T
+function Base.similar(A::CSXMatrix, ::Type{T}, dims::NTuple{2, Int}) where {T}
     if dims != size(A)
         throw(ArgumentError("size mismatch"))
     end
@@ -175,10 +175,10 @@ end
 
 # Scalar setindex!: only allowed if entry is already stored
 # TODO: Allow if v === zero(T) even if entry not stored?
-@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v, row, col) where T
+@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v, row, col) where {T}
     return setindex!(A, T(v), Int(row), Int(col))
 end
-@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v::T, row::Int, col::Int) where T
+@propagate_inbounds function Base.setindex!(A::CSXMatrix{T}, v::T, row::Int, col::Int) where {T}
     @boundscheck checkbounds(A, row, col)
     k = @inbounds findtoken(A, row, col)
     if k === nothing
@@ -189,7 +189,7 @@ end
 end
 
 # Note: not part of the AbstractArray interface
-function modifyindex!(A::CSXMatrix, f::F, v, row, col) where F
+function modifyindex!(A::CSXMatrix, f::F, v, row, col) where {F}
     k = findtoken(A, row, col)
     if k === nothing
         throw(SparsityError(lazy"row = $row and col = $col is not stored"))
@@ -206,7 +206,7 @@ getindex_at_token(x::Number, _) = x
 getindex_at_token(x::CSXMatrix, token) = x.nzval[token]
 
 zero_if_csx(x::Number) = x
-zero_if_csx(::CSXMatrix{Tv}) where Tv = zero(Tv)
+zero_if_csx(::CSXMatrix{Tv}) where {Tv} = zero(Tv)
 
 # Broadcast style. Not differentiating between CSCMatrix and CSRMatrix here because we have
 # to check it when instantiating the broadcasted object anyway.
@@ -219,7 +219,7 @@ Broadcast.BroadcastStyle(::SpartanStyle, ::Broadcast.DefaultArrayStyle{0}) = Spa
 Broadcast.BroadcastStyle(::SpartanStyle, ::SpartanStyle) = SpartanStyle()
 
 # Return the output matrix
-function Base.similar(bc::Broadcast.Broadcasted{SpartanStyle}, ::Type{T}) where T
+function Base.similar(bc::Broadcast.Broadcasted{SpartanStyle}, ::Type{T}) where {T}
     # TODO: This is done again in copyto!
     bc = Broadcast.flatten(bc)
     idx = findfirst(x -> x isa CSXMatrix, bc.args)

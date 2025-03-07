@@ -20,10 +20,10 @@ using LinearAlgebra: mul!
     li = LinearIndices(CSC)
     for col in 1:n, row in 1:m
         @test csc[row, col] == csc[li[row, col]] ==
-              csr[row, col] == csr[li[row, col]] ==
-              CSC[row, col] == CSC[li[row, col]]
+            csr[row, col] == csr[li[row, col]] ==
+            CSC[row, col] == CSC[li[row, col]]
     end
-    for (row, col) in ((1, 0), (0, 1), (m+1, 1), (1, n+1)), mat in (csc, csr)
+    for (row, col) in ((1, 0), (0, 1), (m + 1, 1), (1, n + 1)), mat in (csc, csr)
         @test_throws BoundsError mat[row, col]
     end
     # Scalar setindex!
