@@ -126,3 +126,50 @@ end
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
 end
+
+@testset "Broadcasting" begin
+    T = Float64
+    n = 10
+    CSC = sprand(T, n, n, 0.1)
+    I, J, V = findnz(CSC)
+    csc = cscmatrix(I, J, V, n, n)
+    csr = csrmatrix(I, J, V, n, n)
+    b = rand(T)
+    let x = csc .* b, y = csr .* b, X = CSC .* b
+        @test aliased_sparsity_pattern(x, csc)
+        @test aliased_sparsity_pattern(y, csr)
+        @test x == y == X
+    end
+    let x = csc .* csc, y = csr .* csr, X = CSC .* CSC
+        @test aliased_sparsity_pattern(x, csc)
+        @test aliased_sparsity_pattern(y, csr)
+        @test x == y == X
+    end
+    let x = csc .+ b .* csc, y = csr .+ b .* csr, X = CSC .+ b .* CSC
+        @test aliased_sparsity_pattern(x, csc)
+        @test aliased_sparsity_pattern(y, csr)
+        @test x == y == X
+    end
+    # Index vectors of broadcasting aliases the first CSXMatrix
+    csc′ = CSCMatrix(csc.m, csc.n, copy(csc.colptr), copy(csc.rowval), copy(csc.nzval))
+    csr′ = CSRMatrix(csr.m, csr.n, copy(csr.rowptr), copy(csr.colval), copy(csr.nzval))
+    @test !aliased_sparsity_pattern(csc, csc′)
+    @test !aliased_sparsity_pattern(csr, csr′)
+    let x = csc .* csc′, y = csr .* csr′, X = CSC .* CSC
+        @test aliased_sparsity_pattern(x, csc)
+        @test aliased_sparsity_pattern(y, csr)
+        @test x == y == X
+    end
+    let x = csc′ .* csc, y = csr′ .* csr, X = CSC .* CSC
+        @test aliased_sparsity_pattern(x, csc′)
+        @test aliased_sparsity_pattern(y, csr′)
+        @test x == y == X
+    end
+    # Error paths
+    for csx in (csc, csr)
+        @test_throws SpartanMatrices.SparsityError csx .+ 1.0
+        @test_throws SpartanMatrices.SparsityError 1.0 .+ csx
+        @test_throws SpartanMatrices.SparsityError cos.(csx)
+    end
+    @test_throws SpartanMatrices.SparsityError csc .+ csr
+end
