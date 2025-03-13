@@ -11,6 +11,13 @@ function aliased_sparsity_pattern(A::SpartanMatrices.CSXMatrix, B::SpartanMatric
         SpartanMatrices.rowcolval(A) === SpartanMatrices.rowcolval(B)
 end
 
+function indexcopy(A::SpartanMatrices.CSXMatrix)
+    return typeof(A)(
+        A.m, A.n, copy(SpartanMatrices.rowcolptr(A)),
+        copy(SpartanMatrices.rowcolval(A)), copy(A.nzval)
+    )
+end
+
 @testset "SpartanArrays basics" begin
     # Constructors
     I = [1, 1, 2, 3]
@@ -52,6 +59,49 @@ end
     m, n = (10, 20)
     err = SpartanMatrices.SparsityError(lazy"test ($m, $n)")
     @test sprint(showerror, err) == "SparsityError: test ($m, $n)"
+end
+
+@testset "copy, copyto!, similar" begin
+    T = Float64
+    n = 10
+    CSC = sprand(T, n, n, 0.5)
+    I, J, V = findnz(CSC)
+    csc = cscmatrix(I, J, V, n, n)
+    csr = csrmatrix(I, J, V, n, n)
+    # copy
+    for csx in (csc, csr)
+        csx′ = copy(csx)
+        @test aliased_sparsity_pattern(csx, csx′)
+        @test csx.nzval !== csx′.nzval
+        @test csx.nzval == csx′.nzval
+    end
+    # similar
+    for csx in (csc, csr)
+        csx′ = similar(csx)
+        @test aliased_sparsity_pattern(csx, csx′)
+        @test csx.nzval !== csx′.nzval
+        @test csx.nzval != csx′.nzval
+        @test length(csx.nzval) == length(csx′.nzval)
+        @test typeof(csx.nzval) == typeof(csx′.nzval)
+    end
+    # copyto!
+    for csx in (csc, csr)
+        csx′ = similar(csx)
+        @test copyto!(csx′, csx) === csx′
+        @test aliased_sparsity_pattern(csx, csx′)
+        @test csx.nzval !== csx′.nzval
+        @test csx.nzval == csx′.nzval
+        csx′ = indexcopy(csx)
+        @test !aliased_sparsity_pattern(csx, csx′)
+        @test copyto!(csx′, csx) === csx′
+        @test csx.nzval !== csx′.nzval
+        @test csx.nzval == csx′.nzval
+        # Error paths
+        wrong_size = (csx isa CSCMatrix ? cscmatrix : csrmatrix)(I, J, V, n + 1, n + 1)
+        @test_throws SpartanMatrices.SparsityError copyto!(wrong_size, csx)
+        wrong_pattern = (csx isa CSCMatrix ? cscmatrix : csrmatrix)((I[1] += 1; I), J, V, n, n)
+        @test_throws SpartanMatrices.SparsityError copyto!(wrong_pattern, csx)
+    end
 end
 
 @testset "A::CSXMatrix{$T} $op B::CSXMatrix{$T}" for T in (Float32, Float64), op in (+, -)
