@@ -4,7 +4,7 @@ export CSCMatrix, CSRMatrix
 export cscmatrix, csrmatrix
 
 using Base: Broadcast
-using LinearAlgebra: LinearAlgebra, mul!, transpose
+using LinearAlgebra: LinearAlgebra, cholesky, lu, mul!, transpose
 using SparseArrays: SparseArrays, SparseMatrixCSC
 
 # Silence of the Langs(erver)
@@ -323,5 +323,12 @@ function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSRMatrix{T}, b::AbstractVe
     # TODO: transpose -> hermitian?
     return mul!(c, transpose(unsafe_cast(SparseMatrixCSC, A)), b, α, β)
 end
+
+# Factorizations
+Base.:\(A::CSXMatrix, b::AbstractVector) = lu(A) \ b
+LinearAlgebra.lu(A::CSCMatrix) = lu(unsafe_cast(SparseMatrixCSC, A))
+LinearAlgebra.lu(A::CSRMatrix) = lu(transpose(unsafe_cast(SparseMatrixCSC, A)))
+LinearAlgebra.cholesky(A::CSCMatrix) = cholesky(unsafe_cast(SparseMatrixCSC, A))
+LinearAlgebra.cholesky(A::CSRMatrix) = cholesky(transpose(unsafe_cast(SparseMatrixCSC, A)))
 
 end # module SpartanMatrices

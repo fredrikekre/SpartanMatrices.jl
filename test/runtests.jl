@@ -2,7 +2,7 @@ using SpartanMatrices
 using Test
 
 using SparseArrays: SparseArrays, sprand, findnz
-using LinearAlgebra: mul!
+using LinearAlgebra: LinearAlgebra, mul!, lu, cholesky, isposdef
 
 function aliased_sparsity_pattern(A::SpartanMatrices.CSXMatrix, B::SpartanMatrices.CSXMatrix)
     return SpartanMatrices.BaseType(A) === SpartanMatrices.BaseType(B) &&
@@ -101,30 +101,27 @@ end
     csc = cscmatrix(I, J, V, n, n)
     csr = csrmatrix(I, J, V, n, n)
     b = rand(T)
-    # CSC: A * b
+    # CSC
     function csccheck(A, B)
         @test size(x) == size(X) && x.rowval == X.rowval && x.colptr == X.colptr && x.nzval ≈ X.nzval
     end
-    ## A * b
     let x = csc * b, X = CSC * b
         @test aliased_sparsity_pattern(x, csc)
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
-    ## b * A
     let x = b * csc, X = b * CSC
         @test aliased_sparsity_pattern(x, csc)
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
-    ## A / b
     let x = csc / b, X = CSC / b
         @test aliased_sparsity_pattern(x, csc)
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
-    # b \ A
     let x = b \ csc, X = b \ CSC
         @test aliased_sparsity_pattern(x, csc)
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
+    # CSR
 end
 
 @testset "Broadcasting" begin
@@ -172,4 +169,24 @@ end
         @test_throws SpartanMatrices.SparsityError cos.(csx)
     end
     @test_throws SpartanMatrices.SparsityError csc .+ csr
+end
+
+@testset "Factorizations (lu, cholesky) T = $T" for T in (Float64, ComplexF64)
+    n = 10
+    CSC = sprand(T, n, n, 0.1) + 5 * LinearAlgebra.I
+    CSC = CSC + CSC'
+    I, J, V = findnz(CSC)
+    csc = cscmatrix(I, J, V, n, n)
+    csr = csrmatrix(I, J, V, n, n)
+    b = rand(T, n)
+    @test isposdef(Matrix(csc))
+    @test isposdef(Matrix(csr))
+    let x = csc \ b, y = csr \ b, X = CSC \ b
+        @test x ≈ X
+        @test y ≈ X
+    end
+    let x = lu(csc) \ b, y = lu(csr) \ b, X = lu(CSC) \ b
+        @test x ≈ X
+        @test y ≈ X
+    end
 end
