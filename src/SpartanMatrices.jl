@@ -4,7 +4,7 @@ export CSCMatrix, CSRMatrix
 export cscmatrix, csrmatrix
 
 using Base: Broadcast
-using LinearAlgebra: LinearAlgebra, mul!, transpose
+using LinearAlgebra: LinearAlgebra, mul!, transpose, lu
 using SparseArrays: SparseArrays, SparseMatrixCSC
 
 # Silence of the Langs(erver)
@@ -146,6 +146,17 @@ function Base.show(io::IO, ::MIME"text/plain", A::CSXMatrix)
     return
 end
 
+
+################
+# Base methods #
+################
+
+# This is reached from `copy` which calls `copymutable` (i.e. `similar`) and then `copyto!`.
+function Base.copyto!(dst::X, src::X) where {X <: CSXMatrix}
+    require_same_sparsity_pattern(dst, src)
+    copyto!(dst.nzval, src.nzval)
+    return dst
+end
 
 ###########################
 # AbstractArray interface #
@@ -323,5 +334,10 @@ function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSRMatrix{T}, b::AbstractVe
     # TODO: transpose -> hermitian?
     return mul!(c, transpose(unsafe_cast(SparseMatrixCSC, A)), b, α, β)
 end
+
+# Factorizations
+Base.:\(A::CSXMatrix, b::AbstractVector) = lu(A) \ b
+LinearAlgebra.lu(A::CSCMatrix) = lu(unsafe_cast(SparseMatrixCSC, A))
+LinearAlgebra.lu(A::CSRMatrix) = lu(transpose(unsafe_cast(SparseMatrixCSC, A)))
 
 end # module SpartanMatrices
