@@ -152,7 +152,7 @@ end
 ################
 
 # This is reached from `copy` which calls `copymutable` (i.e. `similar`) and then `copyto!`.
-function Base.copyto!(dst::X, src::X) where {X <: CSXMatrix}
+function Base.copyto!(dst::CSXMatrix, src::CSXMatrix)
     require_same_sparsity_pattern(dst, src)
     copyto!(dst.nzval, src.nzval)
     return dst
@@ -166,7 +166,7 @@ function Base.size(csx::CSXMatrix)
     return (csx.m, csx.n)
 end
 
-function Base.similar(A::CSXMatrix, ::Type{T}, dims::NTuple{2, Int}) where {T}
+function Base.similar(A::CSXMatrix, ::Type{T}, dims::NTuple{N, Int}) where {T, N}
     if dims != size(A)
         throw(ArgumentError("size mismatch"))
     end

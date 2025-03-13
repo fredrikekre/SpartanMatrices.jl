@@ -77,16 +77,34 @@ end
     end
     # similar
     for csx in (csc, csr)
-        csx′ = similar(csx)
+        for csx′ in (similar(csx), similar(csx, eltype(csx)), similar(csx, eltype(csx), size(csx)))
+            @test aliased_sparsity_pattern(csx, csx′)
+            @test csx.nzval !== csx′.nzval
+            @test csx.nzval != csx′.nzval
+            @test axes(csx.nzval) == axes(csx′.nzval)
+            @test typeof(csx.nzval) == typeof(csx′.nzval)
+        end
+        csx′ = similar(csx, ComplexF64)
         @test aliased_sparsity_pattern(csx, csx′)
         @test csx.nzval !== csx′.nzval
         @test csx.nzval != csx′.nzval
-        @test length(csx.nzval) == length(csx′.nzval)
-        @test typeof(csx.nzval) == typeof(csx′.nzval)
+        @test axes(csx.nzval) == axes(csx′.nzval)
+        @test typeof(csx.nzval) !== typeof(csx′.nzval)
+        # Error paths
+        @test_throws ArgumentError("size mismatch") similar(csx, n)
+        @test_throws ArgumentError("size mismatch") similar(csx, n + 1, n + 1)
+        @test_throws ArgumentError("size mismatch") similar(csx, n + 1, n)
+        @test_throws ArgumentError("size mismatch") similar(csx, ComplexF64, n, n + 1)
+        @test_throws ArgumentError("size mismatch") similar(csx, ComplexF64, n, n + 1, n)
     end
     # copyto!
     for csx in (csc, csr)
         csx′ = similar(csx)
+        @test copyto!(csx′, csx) === csx′
+        @test aliased_sparsity_pattern(csx, csx′)
+        @test csx.nzval !== csx′.nzval
+        @test csx.nzval == csx′.nzval
+        csx′ = similar(csx, ComplexF64)
         @test copyto!(csx′, csx) === csx′
         @test aliased_sparsity_pattern(csx, csx′)
         @test csx.nzval !== csx′.nzval
