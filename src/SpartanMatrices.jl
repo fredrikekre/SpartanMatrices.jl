@@ -331,7 +331,6 @@ function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSCMatrix{T}, b::AbstractVe
     return mul!(c, unsafe_cast(SparseMatrixCSC, A), b, α, β)
 end
 function LinearAlgebra.mul!(c::AbstractVector{T}, A::CSRMatrix{T}, b::AbstractVector{T}, α::Number, β::Number) where {T}
-    # TODO: transpose -> hermitian?
     return mul!(c, transpose(unsafe_cast(SparseMatrixCSC, A)), b, α, β)
 end
 
