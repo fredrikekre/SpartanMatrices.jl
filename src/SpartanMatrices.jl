@@ -118,15 +118,14 @@ end
 # Constructors #
 ################
 
-function cscmatrix(args...)
-    S = SparseArrays.sparse(args...)
+function cscmatrix(I::AbstractVector, J::AbstractVector, args...)
+    S = SparseArrays.sparse(I, J, args...)
     return unsafe_cast(CSCMatrix, S)
-    # return CSCMatrix(S.m, S.n, S.colptr, S.rowval, S.nzval)
 end
 
-function csrmatrix(I, J, args...)
+function csrmatrix(I::AbstractVector, J::AbstractVector, args...)
     S = SparseArrays.sparse(J, I, args...) # Note the swap of I and J
-    return CSRMatrix(S.n, S.m, S.colptr, S.rowval, S.nzval)
+    return unsafe_cast(CSRMatrix, S)
 end
 
 
