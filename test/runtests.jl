@@ -170,9 +170,6 @@ end
     csr = csrmatrix(I, J, V, n, n)
     b = rand(T)
     # CSC
-    function csccheck(A, B)
-        @test size(x) == size(X) && x.rowval == X.rowval && x.colptr == X.colptr && x.nzval ≈ X.nzval
-    end
     let x = csc * b, X = CSC * b
         @test aliased_sparsity_pattern(x, csc)
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
@@ -190,6 +187,22 @@ end
         @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
     end
     # CSR
+    let x = csr * b, X = CSC * b
+        @test aliased_sparsity_pattern(x, csr)
+        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+    end
+    let x = b * csr, X = b * CSC
+        @test aliased_sparsity_pattern(x, csr)
+        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+    end
+    let x = csr / b, X = CSC / b
+        @test aliased_sparsity_pattern(x, csr)
+        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+    end
+    let x = b \ csr, X = b \ CSC
+        @test aliased_sparsity_pattern(x, csr)
+        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+    end
 end
 
 @testset "Broadcasting" begin
