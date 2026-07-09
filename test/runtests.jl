@@ -276,3 +276,22 @@ end
         @test y ≈ X
     end
 end
+
+@testset "Factorization (lu) of non-symmetric matrix T = $T" for T in (Float64, ComplexF64)
+    n = 10
+    # Diagonally dominant (invertible) but non-symmetric
+    CSC = sprand(T, n, n, 0.3) + 5 * LinearAlgebra.I
+    @test CSC != transpose(CSC) # guard: make sure the pattern is actually non-symmetric
+    I, J, V = findnz(CSC)
+    csc = cscmatrix(I, J, V, n, n)
+    csr = csrmatrix(I, J, V, n, n)
+    b = rand(T, n)
+    let x = csc \ b, y = csr \ b, X = CSC \ b
+        @test x ≈ X
+        @test y ≈ X
+    end
+    let x = lu(csc) \ b, y = lu(csr) \ b, X = lu(CSC) \ b
+        @test x ≈ X
+        @test y ≈ X
+    end
+end
