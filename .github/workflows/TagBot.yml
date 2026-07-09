@@ -34,7 +34,7 @@ jobs:
             {{ custom }}
             {% endif %}
 
-            See [`CHANGELOG.md`](https://github.com/fredrikekre/SpartanMatrices.jl/blob/master/CHANGELOG.md) for notable changes.
+            See [`CHANGELOG.md`](https://github.com/fredrikekre/SpartanArrays.jl/blob/master/CHANGELOG.md) for notable changes.
 
             {% if previous_release %}
             [Diff since {{ previous_release }}]({{ compare_url }})

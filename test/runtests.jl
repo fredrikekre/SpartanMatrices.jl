@@ -1,20 +1,20 @@
-using SpartanMatrices
+using SpartanArrays
 using Test
 
 using SparseArrays: SparseArrays, sprand, findnz
 using LinearAlgebra: LinearAlgebra, mul!, lu, cholesky, isposdef
 
-function aliased_sparsity_pattern(A::SpartanMatrices.CSXMatrix, B::SpartanMatrices.CSXMatrix)
-    return SpartanMatrices.BaseType(A) === SpartanMatrices.BaseType(B) &&
+function aliased_sparsity_pattern(A::SpartanArrays.CSXMatrix, B::SpartanArrays.CSXMatrix)
+    return SpartanArrays.BaseType(A) === SpartanArrays.BaseType(B) &&
         axes(A) == axes(B) &&
-        SpartanMatrices.rowcolptr(A) === SpartanMatrices.rowcolptr(B) &&
-        SpartanMatrices.rowcolval(A) === SpartanMatrices.rowcolval(B)
+        SpartanArrays.rowcolptr(A) === SpartanArrays.rowcolptr(B) &&
+        SpartanArrays.rowcolval(A) === SpartanArrays.rowcolval(B)
 end
 
-function indexcopy(A::SpartanMatrices.CSXMatrix)
+function indexcopy(A::SpartanArrays.CSXMatrix)
     return typeof(A)(
-        A.m, A.n, copy(SpartanMatrices.rowcolptr(A)),
-        copy(SpartanMatrices.rowcolval(A)), copy(A.nzval)
+        A.m, A.n, copy(SpartanArrays.rowcolptr(A)),
+        copy(SpartanArrays.rowcolval(A)), copy(A.nzval)
     )
 end
 
@@ -53,16 +53,16 @@ end
     end
     row, col = 2, 1 # not stored
     for mat in (csc, csr)
-        @test_throws SpartanMatrices.SparsityError setindex!(mat, val, row, col)
+        @test_throws SpartanArrays.SparsityError setindex!(mat, val, row, col)
     end
 end
 
 @testset "SpartanArrays utilities" begin
     # SparsityError
-    err = SpartanMatrices.SparsityError()
+    err = SpartanArrays.SparsityError()
     @test sprint(showerror, err) == "SparsityError"
     m, n = (10, 20)
-    err = SpartanMatrices.SparsityError(lazy"test ($m, $n)")
+    err = SpartanArrays.SparsityError(lazy"test ($m, $n)")
     @test sprint(showerror, err) == "SparsityError: test ($m, $n)"
 end
 
@@ -121,9 +121,9 @@ end
         @test csx.nzval == csx′.nzval
         # Error paths
         wrong_size = (csx isa CSCMatrix ? cscmatrix : csrmatrix)(I, J, V, n + 1, n + 1)
-        @test_throws SpartanMatrices.SparsityError copyto!(wrong_size, csx)
+        @test_throws SpartanArrays.SparsityError copyto!(wrong_size, csx)
         wrong_pattern = (csx isa CSCMatrix ? cscmatrix : csrmatrix)((I[1] += 1; I), J, V, n, n)
-        @test_throws SpartanMatrices.SparsityError copyto!(wrong_pattern, csx)
+        @test_throws SpartanArrays.SparsityError copyto!(wrong_pattern, csx)
     end
 end
 
@@ -131,18 +131,18 @@ end
     for m in (10, 20), n in (10, 20)
         CSC = sprand(T, m, n, 0.1)
         CSR = transpose(CSC)
-        csc = SpartanMatrices.unsafe_cast(CSCMatrix, CSC)
-        csr = SpartanMatrices.unsafe_cast(CSRMatrix, CSC)
+        csc = SpartanArrays.unsafe_cast(CSCMatrix, CSC)
+        csr = SpartanArrays.unsafe_cast(CSRMatrix, CSC)
         for (csx, CSX) in ((csc, CSC), (csr, CSR))
             x = op(csx, csx)
             @test x == op(CSX, CSX)
-            @test SpartanMatrices.rowcolptr(x) === SpartanMatrices.rowcolptr(csx)
-            @test SpartanMatrices.rowcolval(x) === SpartanMatrices.rowcolval(csx)
+            @test SpartanArrays.rowcolptr(x) === SpartanArrays.rowcolptr(csx)
+            @test SpartanArrays.rowcolval(x) === SpartanArrays.rowcolval(csx)
         end
         CSC2 = sprand(T, m, n, 0.1)
         CSR2 = transpose(CSC2)
-        csc2 = SpartanMatrices.unsafe_cast(CSCMatrix, CSC2)
-        csr2 = SpartanMatrices.unsafe_cast(CSRMatrix, CSC2)
+        csc2 = SpartanArrays.unsafe_cast(CSCMatrix, CSC2)
+        csr2 = SpartanArrays.unsafe_cast(CSRMatrix, CSC2)
         @test_throws Exception op(csc, csc2)
         @test_throws Exception op(csr, csr2)
         @test_throws Exception op(csc, csr)
@@ -177,36 +177,36 @@ end
     # CSC
     let x = csc * b, X = CSC * b
         @test aliased_sparsity_pattern(x, csc)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
+        @test x ≈ SpartanArrays.unsafe_cast(CSCMatrix, X)
     end
     let x = b * csc, X = b * CSC
         @test aliased_sparsity_pattern(x, csc)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
+        @test x ≈ SpartanArrays.unsafe_cast(CSCMatrix, X)
     end
     let x = csc / b, X = CSC / b
         @test aliased_sparsity_pattern(x, csc)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
+        @test x ≈ SpartanArrays.unsafe_cast(CSCMatrix, X)
     end
     let x = b \ csc, X = b \ CSC
         @test aliased_sparsity_pattern(x, csc)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSCMatrix, X)
+        @test x ≈ SpartanArrays.unsafe_cast(CSCMatrix, X)
     end
     # CSR
     let x = csr * b, X = CSC * b
         @test aliased_sparsity_pattern(x, csr)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+        @test x ≈ SpartanArrays.unsafe_cast(CSRMatrix, copy(transpose(X)))
     end
     let x = b * csr, X = b * CSC
         @test aliased_sparsity_pattern(x, csr)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+        @test x ≈ SpartanArrays.unsafe_cast(CSRMatrix, copy(transpose(X)))
     end
     let x = csr / b, X = CSC / b
         @test aliased_sparsity_pattern(x, csr)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+        @test x ≈ SpartanArrays.unsafe_cast(CSRMatrix, copy(transpose(X)))
     end
     let x = b \ csr, X = b \ CSC
         @test aliased_sparsity_pattern(x, csr)
-        @test x ≈ SpartanMatrices.unsafe_cast(CSRMatrix, copy(transpose(X)))
+        @test x ≈ SpartanArrays.unsafe_cast(CSRMatrix, copy(transpose(X)))
     end
 end
 
@@ -250,11 +250,11 @@ end
     end
     # Error paths
     for csx in (csc, csr)
-        @test_throws SpartanMatrices.SparsityError csx .+ 1.0
-        @test_throws SpartanMatrices.SparsityError 1.0 .+ csx
-        @test_throws SpartanMatrices.SparsityError cos.(csx)
+        @test_throws SpartanArrays.SparsityError csx .+ 1.0
+        @test_throws SpartanArrays.SparsityError 1.0 .+ csx
+        @test_throws SpartanArrays.SparsityError cos.(csx)
     end
-    @test_throws SpartanMatrices.SparsityError csc .+ csr
+    @test_throws SpartanArrays.SparsityError csc .+ csr
 end
 
 @testset "Factorizations (lu, cholesky) T = $T" for T in (Float64, ComplexF64)

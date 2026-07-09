@@ -41,9 +41,9 @@ jobs:
       - name: ExplicitImports.jl code checks
         shell: julia --project {0}
         run: |
-          using SpartanMatrices, ExplicitImports
-          # Check SpartanMatrices
-          check_no_implicit_imports(SpartanMatrices)
-          check_no_stale_explicit_imports(SpartanMatrices)
-          check_all_qualified_accesses_via_owners(SpartanMatrices)
-          check_no_self_qualified_accesses(SpartanMatrices)
+          using SpartanArrays, ExplicitImports
+          # Check SpartanArrays
+          check_no_implicit_imports(SpartanArrays)
+          check_no_stale_explicit_imports(SpartanArrays)
+          check_all_qualified_accesses_via_owners(SpartanArrays)
+          check_no_self_qualified_accesses(SpartanArrays)

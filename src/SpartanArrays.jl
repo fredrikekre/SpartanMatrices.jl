@@ -1,4 +1,4 @@
-module SpartanMatrices
+module SpartanArrays
 
 export CSCMatrix, CSRMatrix
 export cscmatrix, csrmatrix
@@ -347,4 +347,4 @@ LinearAlgebra.lu(A::CSRMatrix) = lu(transpose(unsafe_cast(SparseMatrixCSC, A)))
 LinearAlgebra.cholesky(A::CSCMatrix) = cholesky(unsafe_cast(SparseMatrixCSC, A))
 LinearAlgebra.cholesky(A::CSRMatrix) = cholesky(transpose(unsafe_cast(SparseMatrixCSC, A)))
 
-end # module SpartanMatrices
+end # module SpartanArrays
