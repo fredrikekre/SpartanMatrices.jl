@@ -30,6 +30,11 @@ end
     CSC = SparseArrays.sparse(I, J, V)
     @test csc == csr == CSC
     @test size(csc) == size(csr) == size(CSC)
+    # Explicit-dimension constructors (note: the pattern above is non-square, m != n)
+    csc_mn = cscmatrix(I, J, V, m, n)
+    csr_mn = csrmatrix(I, J, V, m, n)
+    @test csc_mn == csr_mn == CSC
+    @test size(csc_mn) == size(csr_mn) == (m, n) == size(CSC)
     # Scalar getindex
     li = LinearIndices(CSC)
     for col in 1:n, row in 1:m

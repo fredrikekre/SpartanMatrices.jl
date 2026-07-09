@@ -118,13 +118,20 @@ end
 # Constructors #
 ################
 
-function cscmatrix(I::AbstractVector, J::AbstractVector, args...)
-    S = SparseArrays.sparse(I, J, args...)
+function cscmatrix(
+        I::AbstractVector{<:Integer}, J::AbstractVector{<:Integer}, V::AbstractVector{<:Number},
+        m::Integer = maximum(I; init = 0), n::Integer = maximum(J; init = 0), combine...,
+    )
+    S = SparseArrays.sparse(I, J, V, m, n, combine...)
     return unsafe_cast(CSCMatrix, S)
 end
 
-function csrmatrix(I::AbstractVector, J::AbstractVector, args...)
-    S = SparseArrays.sparse(J, I, args...) # Note the swap of I and J
+function csrmatrix(
+        I::AbstractVector{<:Integer}, J::AbstractVector{<:Integer}, V::AbstractVector{<:Number},
+        m::Integer = maximum(I; init = 0), n::Integer = maximum(J; init = 0), combine...,
+    )
+    # Note the swap of I, J and m, n
+    S = SparseArrays.sparse(J, I, V, n, m, combine...)
     return unsafe_cast(CSRMatrix, S)
 end
 
